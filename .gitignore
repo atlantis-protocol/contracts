@@ -1,0 +1,48 @@
+# 📦 Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+package-lock.json.lck
+
+# 🧪 Solidity build output (Hardhat / Truffle / Foundry)
+artifacts/
+cache/
+build/
+out/
+coverage/
+typechain/
+types/
+
+# 🧹 MacOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Icon files
+Icon?
+._*
+
+# 💻 VSCode
+.vscode/
+.history/
+
+# 🔒 Environment files
+.env
+.env.*.local
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# 🧪 Test reports
+coverage.json
+*.tsbuildinfo
+
+# 🔧 Misc
+*.log
+.idea/
+
+# ⏰ Temporary ignore
+launchpad/
