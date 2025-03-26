@@ -123,6 +123,7 @@ contract Master is Ownable, ReentrancyGuard, Whitelist {
         address indexed referrer,
         uint256 commissionAmount
     );
+    event Add(address indexed lpToken, uint256 allocPoint, uint256 indexed pid);
 
     constructor(
         IMeerkatToken _xMeerkat,
@@ -258,6 +259,8 @@ contract Master is Ownable, ReentrancyGuard, Whitelist {
                 accMeerkatPerShare: 0
             })
         );
+        uint256 pid = poolInfo.length - 1;
+        emit Add(address(_lpToken), _allocPoint, pid);
     }
 
     // Update the given pool's MMF allocation point and deposit fee. Can only be called by the owner.
