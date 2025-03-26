@@ -41,7 +41,7 @@ interface GaugeController {
     ) external view returns (uint boostRate);
 }
 
-contract Master is Ownable, ReentrancyGuard, Whitelist {
+contract MasterMeerkat is Ownable, ReentrancyGuard, Whitelist {
     using SafeMath for uint256;
     using SafeBEP20 for IBEP20;
 
