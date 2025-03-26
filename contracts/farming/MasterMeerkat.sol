@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: MIT
-
 // Atlantis Farming forked from MadMeerkatFinance
 
-pragma solidity 0.6.12;
+pragma solidity >=0.6.12;
 
 import "@openzeppelin/contracts-v3/math/Math.sol";
 import "@pancakeswap/pancake-swap-lib/contracts/token/BEP20/SafeBEP20.sol";
@@ -15,6 +14,8 @@ import "./interfaces/IERC721.sol";
 
 interface IMeerkatToken {
     function mint(address _to, uint256 _amount) external returns (bool);
+
+    function redeem(uint256 _amount) external;
 
     function balanceOf(address account) external view returns (uint256);
 
@@ -33,7 +34,14 @@ interface NFTController {
     function isWhitelistedNFT(address token) external view returns (bool);
 }
 
-contract MasterMeerkat is Ownable, ReentrancyGuard, Whitelist {
+interface GaugeController {
+    function getBoostRate(
+        address sender,
+        uint pid
+    ) external view returns (uint boostRate);
+}
+
+contract Master is Ownable, ReentrancyGuard, Whitelist {
     using SafeMath for uint256;
     using SafeBEP20 for IBEP20;
 
@@ -64,6 +72,7 @@ contract MasterMeerkat is Ownable, ReentrancyGuard, Whitelist {
     }
 
     // The MMF TOKEN!
+    IMeerkatToken public xMeerkat;
     IMeerkatToken public meerkat;
     // MMF tokens created per block.
     uint256 public meerkatPerBlock;
@@ -93,6 +102,11 @@ contract MasterMeerkat is Ownable, ReentrancyGuard, Whitelist {
     // Proxy to hold MMF
     ProxyMeerkat public proxy;
 
+    // Unlock rate
+    uint16 public unlockRate = 2000; // 20%
+
+    GaugeController public gauge = GaugeController(address(0));
+
     event Deposit(address indexed user, uint256 indexed pid, uint256 amount);
     event Withdraw(address indexed user, uint256 indexed pid, uint256 amount);
     event EmergencyWithdraw(
@@ -102,20 +116,22 @@ contract MasterMeerkat is Ownable, ReentrancyGuard, Whitelist {
     );
     event UpdateEmissionRate(address indexed user, uint256 meerkatPerBlock);
     event UpdateNFTController(address indexed user, address controller);
+    event UpdateGaugeController(address indexed user, address controller);
     event UpdateNFTBoostRate(address indexed user, uint256 controller);
     event ReferralCommissionPaid(
         address indexed user,
         address indexed referrer,
         uint256 commissionAmount
     );
-    event Add(address indexed lpToken, uint256 allocPoint, uint256 indexed pid);
 
     constructor(
+        IMeerkatToken _xMeerkat,
         IMeerkatToken _meerkat,
         uint256 _meerkatPerBlock,
         uint256 _startBlock,
         address _proxyAddress
     ) public {
+        xMeerkat = _xMeerkat;
         meerkat = _meerkat;
         meerkatPerBlock = _meerkatPerBlock;
         startBlock = _startBlock;
@@ -151,6 +167,14 @@ contract MasterMeerkat is Ownable, ReentrancyGuard, Whitelist {
         uint boost3 = controller.getBoostRate(slot.slot3, slot.tokenId3);
         uint boost = boost1 + boost2 + boost3;
         return boost.mul(nftBoostRate).div(100); // boosts from 0% onwards
+    }
+
+    function getBoostGauge(
+        address _account,
+        uint256 _pid
+    ) public view returns (uint256) {
+        if (address(gauge) == address(0)) return 0; // 10000 equals 1%, 5BPs
+        return gauge.getBoostRate(_account, _pid); // boosts from 0% onwards
     }
 
     function getSlots(
@@ -217,6 +241,7 @@ contract MasterMeerkat is Ownable, ReentrancyGuard, Whitelist {
         IBEP20 _lpToken,
         bool _withUpdate
     ) public onlyOwner nonDuplicated(_lpToken) {
+        require(_lpToken.balanceOf(address(this)) >= 0, "Not ERC20");
         if (_withUpdate) {
             massUpdatePools();
         }
@@ -233,8 +258,6 @@ contract MasterMeerkat is Ownable, ReentrancyGuard, Whitelist {
                 accMeerkatPerShare: 0
             })
         );
-        uint256 pid = poolInfo.length - 1;
-        emit Add(address(_lpToken), _allocPoint, pid);
     }
 
     // Update the given pool's MMF allocation point and deposit fee. Can only be called by the owner.
@@ -250,6 +273,20 @@ contract MasterMeerkat is Ownable, ReentrancyGuard, Whitelist {
             _allocPoint
         );
         poolInfo[_pid].allocPoint = _allocPoint;
+    }
+
+    // Sets multiple lpToken in 1 txn
+    function multiSet(
+        uint256[] calldata _pids,
+        uint256[] calldata _allocPoints,
+        bool _withUpdate
+    ) public onlyOwner {
+        if (_withUpdate) {
+            massUpdatePools();
+        }
+        for (uint i = 0; i < _pids.length; ++i) {
+            set(_pids[i], _allocPoints[i], false);
+        }
     }
 
     /* ========== NFT External Functions ========== */
@@ -338,7 +375,7 @@ contract MasterMeerkat is Ownable, ReentrancyGuard, Whitelist {
             .mul(meerkatPerBlock)
             .mul(pool.allocPoint)
             .div(totalAllocPoint);
-        meerkat.mint(address(proxy), meerkatReward);
+        xMeerkat.mint(address(proxy), meerkatReward);
 
         pool.accMeerkatPerShare = pool.accMeerkatPerShare.add(
             meerkatReward.mul(1e18).div(lpSupply)
@@ -428,8 +465,18 @@ contract MasterMeerkat is Ownable, ReentrancyGuard, Whitelist {
         uint256 _pid
     ) internal {
         uint256 boost = 0;
-        proxy.safeMeerkatTransfer(_to, _amount);
+
+        // retrieves xMMF tokens
+        _amount = proxy.safeMeerkatTransfer(address(this), _amount);
+        uint unlockedAmt = _amount.mul(unlockRate).div(10000);
+
+        // redeems portion of xMMF tokens
+        xMeerkat.redeem(unlockedAmt);
+        meerkat.transfer(_to, unlockedAmt);
+        xMeerkat.transfer(_to, _amount.sub(unlockedAmt));
+
         boost = getBoost(_to, _pid).mul(_amount).div(100);
+        boost = boost.add(getBoostGauge(_to, _pid).mul(_amount).div(10000));
         payReferralCommission(msg.sender, _amount);
         if (boost > 0) meerkat.mint(_to, boost);
     }
@@ -445,6 +492,11 @@ contract MasterMeerkat is Ownable, ReentrancyGuard, Whitelist {
     function setNftController(address _controller) public onlyOwner {
         controller = NFTController(_controller);
         emit UpdateNFTController(msg.sender, _controller);
+    }
+
+    function setGaugeController(address _controller) public onlyOwner {
+        gauge = GaugeController(_controller);
+        emit UpdateGaugeController(msg.sender, _controller);
     }
 
     function setNftBoostRate(uint256 _rate) public onlyOwner {
@@ -471,6 +523,19 @@ contract MasterMeerkat is Ownable, ReentrancyGuard, Whitelist {
             "setReferralCommissionRate: invalid referral commission rate basis points"
         );
         referralCommissionRate = _referralCommissionRate;
+    }
+
+    function setUnlockRate(uint16 _unlockRate) public onlyOwner {
+        require(
+            _unlockRate <= 10000,
+            "setUnlockRate: invalid unlock rate basis points"
+        );
+        unlockRate = _unlockRate;
+    }
+
+    function setProxy(address _proxy) public onlyOwner {
+        require(_proxy != address(0), "setProxy: invalid proxy");
+        proxy = ProxyMeerkat(_proxy);
     }
 
     /* ========== Internal Functions ========== */
