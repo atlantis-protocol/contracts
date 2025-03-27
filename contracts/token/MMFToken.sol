@@ -57,7 +57,7 @@ contract MMFToken is ERC20, Ownable, IExtendedERC20 {
         return true;
     }
 
-    function burnFrom(address account, uint256 amount) external {
+    function burnFrom(address account, uint256 amount) external onlyMinter {
         uint256 currentAllowance = allowance(account, _msgSender());
         require(
             currentAllowance >= amount,
