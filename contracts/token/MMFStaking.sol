@@ -4,7 +4,7 @@ pragma solidity >=0.6.12;
 import "@openzeppelin/contracts-v3/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts-v3/math/SafeMath.sol";
 
-interface IxERC20 is IERC20 {
+interface IExtendedERC20 is IERC20 {
     function lock(uint256 _amount) external;
 
     function redeem(uint256 _amount) external;
@@ -12,7 +12,7 @@ interface IxERC20 is IERC20 {
     function burnFrom(address account, uint256 amount) external;
 }
 
-contract EscrowStaking {
+contract MMFStaking {
     using SafeMath for uint256;
 
     struct LockInfo {
@@ -32,10 +32,10 @@ contract EscrowStaking {
     uint256 minRedeemRatio = 50;
     uint256 maxRedeemRatio = 100;
 
-    IERC20 private token;
-    IxERC20 private escrowToken;
+    IExtendedERC20 private token;
+    IExtendedERC20 private escrowToken;
 
-    constructor(IERC20 _token, IxERC20 _escrowToken) {
+    constructor(IExtendedERC20 _token, IExtendedERC20 _escrowToken) {
         token = _token;
         escrowToken = _escrowToken;
     }
@@ -83,8 +83,8 @@ contract EscrowStaking {
         uint256 MMFresidual = info.amount.sub(info.rewardAmount);
 
         if (MMFresidual > 0) {
-            escrowToken.approve(address(this), MMFresidual);
-            escrowToken.burnFrom(address(this), MMFresidual);
+            token.approve(address(this), MMFresidual);
+            token.burnFrom(address(this), MMFresidual);
         }
 
         token.transfer(msg.sender, info.rewardAmount);
