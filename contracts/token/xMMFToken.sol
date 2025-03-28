@@ -28,7 +28,7 @@ contract xMMFToken is ERC20, Ownable {
     uint256 public maxSupply;
 
     EnumerableSet.AddressSet private _minters;
-    IExtendedERC20 private MMF;
+    IExtendedERC20 public MMF;
 
     /**
      * @dev Initializes the contract with the linked main token
