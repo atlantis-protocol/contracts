@@ -1,0 +1,19 @@
+{
+  "name": "atlantis-contracts",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "@openzeppelin/contracts-v2": "npm:@openzeppelin/contracts@^2.5.1",
+    "@openzeppelin/contracts-v3": "npm:@openzeppelin/contracts@^3.4.2",
+    "@openzeppelin/contracts-v3-upgradeable": "npm:@openzeppelin/contracts-upgradeable@^3.4.2",
+    "@openzeppelin/contracts-v4": "npm:@openzeppelin/contracts@^4.8.3",
+    "@pancakeswap/pancake-swap-lib": "^0.0.4",
+    "@uniswap/lib": "^4.0.1-alpha"
+  }
+}
